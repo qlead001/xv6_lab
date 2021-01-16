@@ -13,6 +13,39 @@ char name[3];
 char *echoargv[] = { "echo", "ALL", "TESTS", "PASSED", 0 };
 int stdout = 1;
 
+// does exit status get returned by wait?
+void
+exitstatustest(void)
+{
+  printf(stdout, "exit status test\n");
+
+  int pid;
+  int waitstatus;
+  int exitstatus;
+
+  for(exitstatus = 0; exitstatus < 10; exitstatus++){
+    pid = fork();
+    if(pid < 0){
+      printf(stdout, "fork failed\n");
+      exit(1);
+    }
+    if(pid){
+      if(wait(&waitstatus) != pid){
+        printf(stdout, "wait wrong pid\n");
+        exit(1);
+      }
+      if(waitstatus != exitstatus){
+        printf(stdout, "wait wrong status\n");
+        exit(1);
+      }
+    } else {
+      exit(exitstatus);
+    }
+  }
+
+  printf(stdout, "exit status ok\n");
+}
+
 // does chdir() call iput(p->cwd) in a transaction?
 void
 iputtest(void)
@@ -1755,6 +1788,8 @@ main(int argc, char *argv[])
     exit(2);
   }
   close(open("usertests.ran", O_CREATE));
+
+  exitstatustest();
 
   argptest();
   createdelete();
