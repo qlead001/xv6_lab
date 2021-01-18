@@ -299,6 +299,7 @@ wait(int *status)
         p->state = UNUSED;
         if(status)
           *status = p->status;
+        p->status = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -311,6 +312,53 @@ wait(int *status)
     }
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+// Wait for a process pid to exit and return its pid.
+// Set status to exit status of child process.
+// Return -1 if this process does not exist.
+int
+waitpid(int pid, int *status, int options)
+{
+  struct proc *p;
+  int pidExists;
+  struct proc *curproc = myproc();
+  
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited process pid.
+    pidExists = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->pid != pid)
+        continue;
+      pidExists = 1;
+      if(p->state == ZOMBIE){
+        // Found pid.
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        if(status)
+          *status = p->status;
+        p->status = 0;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if pid does not exist.
+    if(!pidExists || curproc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for pid to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
 }
