@@ -13,6 +13,63 @@ char name[3];
 char *echoargv[] = { "echo", "ALL", "TESTS", "PASSED", 0 };
 int stdout = 1;
 
+// does waitpid wait properly?
+void
+waitpidtest(void)
+{
+  printf(stdout, "waitpid test\n");
+
+  int pid1, pid2;
+  int waitstatus;
+  int exitstatus;
+
+  for(exitstatus = 0; exitstatus < 10; exitstatus++){
+    pid1 = fork();
+    if(pid1 < 0){
+      printf(stdout, "fork failed\n");
+      exit(1);
+    }
+    if(!pid1)
+      exit(exitstatus);
+
+    pid2 = fork();
+    if(pid2 < 0){
+      printf(stdout, "fork failed\n");
+      exit(1);
+    }
+    if(!pid2){
+      if(waitpid(pid1, &waitstatus, 0) != pid1){
+        printf(stdout, "waitpid failed\n");
+        exit(1);
+      }
+      if(waitstatus != exitstatus){
+        printf(stdout, "waitpid wrong status\n");
+        exit(1);
+      }
+      if(waitpid(pid1, 0, 0) != -1){
+        printf(stdout, "waitpid should have failed but didn't\n");
+        exit(1);
+      }
+      exit(2*exitstatus);
+    }
+
+    if(waitpid(pid2, &waitstatus, 0) != pid2){
+      printf(stdout, "waitpid failed\n");
+      exit(1);
+    }
+    if(waitstatus != 2*exitstatus){
+      printf(stdout, "waitpid wrong status\n");
+      exit(1);
+    }
+    if(wait(0) != -1) {
+      printf(stdout, "Waitpid failed to reap a child\n");
+      exit(1);
+    }
+  }
+
+  printf(stdout, "waitpid ok\n");
+}
+
 // does exit status get returned by wait?
 void
 exitstatustest(void)
@@ -1790,6 +1847,7 @@ main(int argc, char *argv[])
   close(open("usertests.ran", O_CREATE));
 
   exitstatustest();
+  waitpidtest();
 
   argptest();
   createdelete();
