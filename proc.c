@@ -349,6 +349,8 @@ waitpid(int pid, int *status, int options)
         p->status = 0;
         release(&ptable.lock);
         return pid;
+      } else {
+        break;
       }
     }
 
@@ -359,7 +361,7 @@ waitpid(int pid, int *status, int options)
     }
 
     // Wait for pid to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+    sleep(p->parent, &ptable.lock);  //DOC: wait-sleep
   }
 }
 
