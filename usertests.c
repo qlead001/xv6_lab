@@ -40,20 +40,20 @@ waitpidtest(void)
     pid2 = fork();
     if(pid2 < 0){
       printf(stdout, "fork failed\n");
-      exit(1);
+      exit(-1);
     }
     if(!pid2){
       if(waitpid(pid1, &waitstatus, 0) != pid1){
         printf(stdout, "waitpid failed\n");
-        exit(1);
+        exit(-1);
       }
       if(waitstatus != exitstatus){
         printf(stdout, "waitpid wrong status\n");
-        exit(1);
+        exit(-1);
       }
       if(waitpid(pid1, 0, 0) != -1){
         printf(stdout, "waitpid should have failed but didn't\n");
-        exit(1);
+        exit(-1);
       }
       exit(2*exitstatus);
     }
