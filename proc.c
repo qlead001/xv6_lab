@@ -325,6 +325,10 @@ waitpid(int pid, int *status, int options)
   struct proc *p;
   int pidExists;
   struct proc *curproc = myproc();
+
+  // Prevent self wait deadlock
+  if(curproc->pid == pid)
+    return -1;
   
   acquire(&ptable.lock);
   for(;;){

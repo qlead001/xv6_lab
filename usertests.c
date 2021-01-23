@@ -23,6 +23,11 @@ waitpidtest(void)
   int waitstatus;
   int exitstatus;
 
+  if(waitpid(getpid(), 0, 0) != -1){
+    printf(stdout, "waitpid should fail on self wait\n");
+    exit(1);
+  }
+
   for(exitstatus = 0; exitstatus < 10; exitstatus++){
     pid1 = fork();
     if(pid1 < 0){
