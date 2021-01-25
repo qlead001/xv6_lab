@@ -8,6 +8,12 @@
 #include "proc.h"
 
 int
+sys_debug(void)
+{
+  return debug(myproc());
+}
+
+int
 sys_fork(void)
 {
   return fork();

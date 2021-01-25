@@ -554,6 +554,47 @@ kill(int pid)
   return -1;
 }
 
+// Print information about a process
+// Return -1 if process is unused
+int
+debug(struct proc *p)
+{
+  static char *states[] = {
+  [UNUSED]    "unused",
+  [EMBRYO]    "embryo",
+  [SLEEPING]  "sleep ",
+  [RUNNABLE]  "runble",
+  [RUNNING]   "run   ",
+  [ZOMBIE]    "zombie"
+  };
+  int i;
+  char *state;
+  uint pc[10];
+
+  if(p->state == UNUSED)
+    return -1;
+
+  if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+    state = states[p->state];
+  else
+    state = "???";
+  cprintf("%d %s %s %d %s", p->pid, state, p->name,
+          p->parent->pid, p->parent->name);
+
+  if(p->state == SLEEPING){
+    if(p->chan)
+      cprintf(" %d", *(int*)(p->chan));
+    getcallerpcs((uint*)p->context->ebp+2, pc);
+    for(i=0; i<10 && pc[i] != 0; i++)
+      cprintf(" %p", pc[i]);
+  }else if(p->state == ZOMBIE)
+    cprintf(" %d %d", p->killed, p->status);
+
+  cprintf("\n");
+
+  return 0;
+}
+
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.

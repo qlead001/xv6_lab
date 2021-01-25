@@ -84,6 +84,7 @@ argstr(int n, char **pp)
 
 extern int sys_chdir(void);
 extern int sys_close(void);
+extern int sys_debug(void);
 extern int sys_dup(void);
 extern int sys_exec(void);
 extern int sys_exit(void);
@@ -106,6 +107,7 @@ extern int sys_write(void);
 extern int sys_uptime(void);
 
 static int (*syscalls[])(void) = {
+[SYS_debug]   sys_debug,
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
 [SYS_wait]    sys_wait,
