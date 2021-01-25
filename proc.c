@@ -7,6 +7,8 @@
 #include "proc.h"
 #include "spinlock.h"
 
+#define WNOHANG	1
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -323,8 +325,10 @@ int
 waitpid(int pid, int *status, int options)
 {
   struct proc *p;
-  int pidExists;
+  int pidExists, noHang;
   struct proc *curproc = myproc();
+
+  noHang = options & WNOHANG;
 
   // Prevent self wait deadlock
   if(curproc->pid == pid)
@@ -362,6 +366,12 @@ waitpid(int pid, int *status, int options)
     if(!pidExists || curproc->killed){
       release(&ptable.lock);
       return -1;
+    }
+
+    // WNOHANG option
+    if(noHang){
+      release(&ptable.lock);
+      return 0;
     }
 
     // Wait for pid to exit.  (See wakeup1 call in proc_exit.)
