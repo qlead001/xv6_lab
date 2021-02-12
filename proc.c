@@ -572,35 +572,35 @@ debug(struct proc *p)
   static char *states[] = {
   [UNUSED]    "unused",
   [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
+  [SLEEPING]  "sleeping",
+  [RUNNABLE]  "runnable",
+  [RUNNING]   "running",
   [ZOMBIE]    "zombie"
   };
   int i;
   char *state;
   uint pc[10];
 
-  if(p->state == UNUSED)
-    return -1;
-
   if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
     state = states[p->state];
   else
     state = "???";
-  cprintf("%d %s %s %d %s", p->pid, state, p->name,
-          p->parent->pid, p->parent->name);
+  cprintf("Process: %d %s\tState: %s\tParent: %d %s", p->pid,
+          p->name, state, p->parent->pid, p->parent->name);
 
   if(p->state == SLEEPING){
     if(p->chan)
-      cprintf(" %d", *(int*)(p->chan));
+      cprintf("\tChannel: %d\tCall Stack: ", *(int*)(p->chan));
     getcallerpcs((uint*)p->context->ebp+2, pc);
     for(i=0; i<10 && pc[i] != 0; i++)
       cprintf(" %p", pc[i]);
   }else if(p->state == ZOMBIE)
-    cprintf(" %d %d", p->killed, p->status);
+    cprintf("\tKilled: %d\tExit Status: %d", p->killed, p->status);
 
   cprintf("\n");
+
+  if(p->state == UNUSED)
+    return -1;
 
   return 0;
 }
