@@ -114,6 +114,9 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // Set initial priority level
+  p->prior = 1;
+
   return p;
 }
 
@@ -201,6 +204,7 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+  np->prior = curproc->prior;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -302,6 +306,7 @@ wait(int *status)
         if(status)
           *status = p->status;
         p->status = 0;
+        p->prior = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -355,6 +360,7 @@ waitpid(int pid, int *status, int options)
         if(status)
           *status = p->status;
         p->status = 0;
+        p->prior = 0;
         release(&ptable.lock);
         return pid;
       } else {
@@ -390,30 +396,45 @@ waitpid(int pid, int *status, int options)
 void
 scheduler(void)
 {
-  struct proc *p;
+  struct proc *p, *maxp;
+  int maxprior;
   struct cpu *c = mycpu();
   c->proc = 0;
   
   for(;;){
+    maxprior = 0;
+
     // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    maxp = ptable.proc;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
 
+      // Find process with the highest priority
+      if(p->prior > maxprior){
+        maxprior = p->prior;
+        maxp = p;
+        if(maxprior == MAX_PRIOR)
+          break;
+      }
+    }
+
+    // Only switch process if we found a valid process
+    if(maxprior > 0){
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-
-      swtch(&(c->scheduler), p->context);
+      c->proc = maxp;
+      switchuvm(maxp);
+      maxp->state = RUNNING;
+  
+      swtch(&(c->scheduler), maxp->context);
       switchkvm();
-
+  
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
@@ -585,8 +606,8 @@ debug(struct proc *p)
     state = states[p->state];
   else
     state = "???";
-  cprintf("Process: %d %s\tState: %s\tParent: %d %s", p->pid,
-          p->name, state, p->parent->pid, p->parent->name);
+  cprintf("Process: %d %s\tPriority: %d\tState: %s\tParent: %d %s", p->pid,
+          p->name, p->prior, state, p->parent->pid, p->parent->name);
 
   if(p->state == SLEEPING){
     if(p->chan)
@@ -632,7 +653,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("%d %d %s %s", p->pid, p->prior, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
