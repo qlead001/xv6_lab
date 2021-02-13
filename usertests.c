@@ -13,6 +13,46 @@ char name[3];
 char *echoargv[] = { "echo", "ALL", "TESTS", "PASSED", 0 };
 int stdout = 1;
 
+// does nohang work when using waitpid?
+void
+nohangtest(void)
+{
+  printf(stdout, "nohang test\n");
+
+  int pid, output = 0, count = 0;
+
+  if(waitpid(getpid(), 0, 1) != -1){
+    printf(stdout, "waitpid should fail on self wait\n");
+    exit(1);
+  }
+
+  pid = fork();
+  if(pid < 0){
+    printf(stdout, "fork failed\n");
+    exit(1);
+  }
+  if(!pid){
+    sleep(100);
+    exit(0);
+  }
+
+  while(!output){
+    output = waitpid(pid, 0, 1);
+    if(output < 0){
+      printf(stdout, "waitpid failed\n");
+      exit(1);
+    }
+    count++;
+  }
+
+  if(count < 5){
+    printf(stdout, "waitpid with nohang still waited\n");
+    exit(1);
+  }
+
+  printf(stdout, "nohang ok\n");
+}
+
 // does waitpid wait properly?
 void
 waitpidtest(void)
@@ -1853,6 +1893,7 @@ main(int argc, char *argv[])
 
   exitstatustest();
   waitpidtest();
+  nohangtest();
 
   argptest();
   createdelete();
