@@ -626,6 +626,25 @@ debug(struct proc *p)
   return 0;
 }
 
+// Set the priority of the current process.
+// Returns old priority or -1 on error
+int
+setprior(int prior)
+{
+  if(prior > MAX_PRIOR)
+    return -1;
+
+  struct proc *p = myproc();
+  int oldprior;
+
+  acquire(&ptable.lock);
+  oldprior = p->prior;
+  p->prior = prior;
+  release(&ptable.lock);
+
+  return oldprior;
+}
+
 //PAGEBREAK: 36
 // Print a process listing to console.  For debugging.
 // Runs when user types ^P on console.
