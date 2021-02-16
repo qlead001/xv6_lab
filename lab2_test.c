@@ -4,9 +4,9 @@
 #define XSTR(s) STR(s)
 #define STR(s) #s
 
-#define	MAX	16
-#define	MIN	1
-#define DEFAULT	1
+#define	PLMAX	16
+#define	PLMIN	1
+#define PLDEF	1
 
 int main(int argc, char *argv[])
 {
@@ -23,8 +23,8 @@ int main(int argc, char *argv[])
      int PScheduler(void){
 		 
     // use this part to test the priority scheduler. Assuming that the
-    // priorities range between range between MIN and MAX
-    // MAX is the highest priority and MIN is the lowest priority.  
+    // priorities range between range between PLMIN and PLMAX
+    // PLMAX is the highest priority and PLMIN is the lowest priority.  
 
   int pid;
   int i,j,k;
@@ -32,24 +32,24 @@ int main(int argc, char *argv[])
     printf(1, "\n  Step 2: testing the priority scheduler and setprior"
               "(int priority) system call:\n");
     printf(1, "\n  Step 2: Assuming that the priorities range between"
-              " range between "XSTR(MIN)" to "XSTR(MAX)"\n");
-    printf(1, "\n  Step 2: "XSTR(MAX)" is the highest priority. All processes"
-              " have a default priority of "XSTR(DEFAULT)"\n");
+              " range between "XSTR(PLMIN)" to "XSTR(PLMAX)"\n");
+    printf(1, "\n  Step 2: "XSTR(PLMAX)" is the highest priority. All processes"
+              " have a default priority of "XSTR(PLDEF)"\n");
     printf(1, "\n  Step 2: The parent processes will switch to priority "
-              XSTR(MAX)"\n");
-    setprior(MAX);
+              XSTR(PLMAX)"\n");
+    setprior(PLMAX);
     for (i = 0; i <  3; i++) {
 	pid = fork();
 	if (pid > 0 ) {
 		continue;}
 	else if ( pid == 0) {
 
-		setprior(MIN+5*i);	
+		setprior(PLMIN+5*i);	
 		for (j=0;j<50000;j++) {
 			for(k=0;k<1000;k++) {
 				asm("nop"); }}
 		printf(1, "\n child# %d with priority %d has finished! \n",
-                       getpid(),MIN+5*i);		
+                       getpid(),PLMIN+5*i);		
 		exit(0);
         }
         else {
