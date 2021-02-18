@@ -182,6 +182,7 @@ UPROGS=\
 	_sh\
 	_stressfs\
 	_usertests\
+	_usertests2\
 	_waitpidExample\
 	_wc\
 	_zombie\
