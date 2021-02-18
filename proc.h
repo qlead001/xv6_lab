@@ -35,6 +35,7 @@ struct context {
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 #define	MAX_PRIOR	16
+#define	MIN_PRIOR	1
 
 // Per-process state
 struct proc {
@@ -52,7 +53,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int status;                  // Process exit status
-  int prior;                   // Priority level 1 to MAX_PRIOR inclusive
+  int prior;                   // Priority MIN_PRIOR to MAX_PRIOR inclusive
 };
 
 // Process memory is laid out contiguously, low addresses first:

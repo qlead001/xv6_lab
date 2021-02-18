@@ -631,7 +631,7 @@ debug(struct proc *p)
 int
 setprior(int prior)
 {
-  if(prior > MAX_PRIOR)
+  if(prior > MAX_PRIOR || prior < MIN_PRIOR)
     return -1;
 
   struct proc *p = myproc();
