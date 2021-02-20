@@ -115,7 +115,14 @@ found:
   p->context->eip = (uint)forkret;
 
   // Set initial priority level
-  p->prior = 1;
+  p->prior = DEF_PRIOR;
+  p->currprior = DEF_PRIOR;
+
+  // Save when the process started
+  acquire(&tickslock);
+  p->initticks = ticks;
+  p->schedticks = ticks;
+  release(&tickslock);
 
   return p;
 }
@@ -205,6 +212,12 @@ fork(void)
   np->parent = curproc;
   *np->tf = *curproc->tf;
   np->prior = curproc->prior;
+  np->currprior = np->prior;
+
+  acquire(&tickslock);
+  np->initticks = ticks;
+  np->schedticks = ticks;
+  release(&tickslock);
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -307,6 +320,9 @@ wait(int *status)
           *status = p->status;
         p->status = 0;
         p->prior = 0;
+        p->currprior = 0;
+        p->initticks = 0;
+        p->schedticks = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -361,6 +377,9 @@ waitpid(int pid, int *status, int options)
           *status = p->status;
         p->status = 0;
         p->prior = 0;
+        p->currprior = 0;
+        p->initticks = 0;
+        p->schedticks = 0;
         release(&ptable.lock);
         return pid;
       } else {
@@ -397,7 +416,7 @@ void
 scheduler(void)
 {
   struct proc *p, *maxp;
-  int maxprior;
+  int maxprior, currticks;
   struct cpu *c = mycpu();
   c->proc = 0;
   
@@ -414,9 +433,20 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
 
+      acquire(&tickslock);
+      currticks = ticks;
+      release(&tickslock);
+
+      // Increase priority of old waiting processes
+      if(currticks - p->schedticks > AGE_THRESHOLD){
+        p->schedticks = currticks;
+        if(p->currprior < MAX_PRIOR)
+          p->currprior++;
+      }
+
       // Find process with the highest priority
-      if(p->prior > maxprior){
-        maxprior = p->prior;
+      if(p->currprior > maxprior){
+        maxprior = p->currprior;
         maxp = p;
         if(maxprior == MAX_PRIOR)
           break;
@@ -435,6 +465,12 @@ scheduler(void)
       swtch(&(c->scheduler), maxp->context);
       switchkvm();
   
+      acquire(&tickslock);
+      maxp->schedticks = ticks;
+      release(&tickslock);
+
+      maxp->currprior = maxp->prior;
+
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
@@ -598,7 +634,7 @@ debug(struct proc *p)
   [RUNNING]   "running",
   [ZOMBIE]    "zombie"
   };
-  int i;
+  int i, age;
   char *state;
   uint pc[10];
 
@@ -606,8 +642,14 @@ debug(struct proc *p)
     state = states[p->state];
   else
     state = "???";
-  cprintf("Process: %d %s\tPriority: %d\tState: %s\tParent: %d %s", p->pid,
-          p->name, p->prior, state, p->parent->pid, p->parent->name);
+
+  acquire(&tickslock);
+  age = ticks - p->initticks;
+  release(&tickslock);
+
+  cprintf("Process: %d %s\tPriority: %d(+%d)\tState: %s\tSize: %d\tAge: %d\t"
+          "Parent: %d %s", p->pid, p->name, p->prior, p->currprior - p->prior,
+          state, p->sz, age, p->parent->pid, p->parent->name);
 
   if(p->state == SLEEPING){
     if(p->chan)
@@ -640,6 +682,12 @@ setprior(int prior)
   acquire(&ptable.lock);
   oldprior = p->prior;
   p->prior = prior;
+  p->currprior = prior;
+
+  acquire(&tickslock);
+  p->schedticks = ticks;
+  release(&tickslock);
+
   release(&ptable.lock);
 
   yield();
@@ -674,7 +722,8 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %d %s %s", p->pid, p->prior, state, p->name);
+    cprintf("%d %d(+%d) %s %s", p->pid, p->prior, p->prior - p->currprior,
+            state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)

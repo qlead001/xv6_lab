@@ -10,7 +10,7 @@ const int stdout = 1;
 
 #define	PRIOR_MAX	16
 #define	PRIOR_MIN	1
-#define	PRIOR_DEF	1
+#define	PRIOR_DEF	4
 int pidtable[PRIOR_MAX-PRIOR_MIN];
 
 // Does nothing n^2 times
