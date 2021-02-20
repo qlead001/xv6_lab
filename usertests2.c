@@ -87,7 +87,7 @@ priortest(void)
     }
     if(!pidtable[prior-PRIOR_MIN]){
       setprior(prior);
-      spin(10000);
+      spin(100);
       exit(E_FINE);
     }
   }
@@ -130,7 +130,7 @@ nohangtest(void)
 {
   printf(stdout, "nohang test\n");
 
-  int pid, output = 0, count = 0;
+  int pid, output = 0, count = 0, killed = 0;
 
   setprior(PRIOR_MIN+1);
 
@@ -140,7 +140,7 @@ nohangtest(void)
     exit(E_ERR);
   }
   if(!pid){
-    sleep(100);
+    spin(100);
     exit(E_FINE);
   }
 
@@ -151,7 +151,8 @@ nohangtest(void)
       exit(E_ERR);
     }
     count++;
-    if(count > 10000){
+
+    if(count > 10000 && !killed){
       printf(stdout, "Warning: child process never finished, "
                      "killing process %d\n", pid);
       if(kill(pid) == -1){
@@ -159,6 +160,7 @@ nohangtest(void)
         exit(E_ERR);
       }
       setprior(PRIOR_MIN);
+      killed = 1;
     }
   }
 
