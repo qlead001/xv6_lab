@@ -642,6 +642,8 @@ setprior(int prior)
   p->prior = prior;
   release(&ptable.lock);
 
+  yield();
+
   return oldprior;
 }
 
