@@ -4,14 +4,9 @@
 #include "user.h"
 
 const int stdout = 1;
+const int stderr = 2;
 
-#define	E_FINE	0
-#define	E_ERR	1
-
-#define	PRIOR_MAX	16
-#define	PRIOR_MIN	1
-#define	PRIOR_DEF	4
-int pidtable[PRIOR_MAX-PRIOR_MIN];
+int pidtable[MAX_PRIOR-MIN_PRIOR];
 
 // Does nothing n^2 times
 // Helper function for priortest()
@@ -34,35 +29,35 @@ setpriortest(void)
 
   int prior, priorOut;
 
-  if(setprior(PRIOR_DEF) != PRIOR_DEF){
+  if(setprior(DEF_PRIOR) != DEF_PRIOR){
     printf(stdout, "setprior did not return expected default priority\n");
     exit(E_ERR);
   }
 
-  if(setprior(PRIOR_MAX+1) != -1){
+  if(setprior(MAX_PRIOR+1) != -1){
     printf(stdout, "setprior did not fail on priority greater than max\n");
     exit(E_ERR);
   }
 
-  if(setprior(PRIOR_MIN-1) != -1){
+  if(setprior(MIN_PRIOR-1) != -1){
     printf(stdout, "setprior did not fail on priority less than min\n");
     exit(E_ERR);
   }
 
-  if(setprior(PRIOR_MIN) != PRIOR_DEF){
+  if(setprior(MIN_PRIOR) != DEF_PRIOR){
     printf(stdout, "setprior did not return expected default priority\n");
     exit(E_ERR);
   }
 
-  for(prior = PRIOR_MIN+1; prior <= PRIOR_MAX; prior++){
+  for(prior = MIN_PRIOR+1; prior <= MAX_PRIOR; prior++){
     if((priorOut = setprior(prior)) != prior-1){
       printf(stdout, "setprior returned %d expected %d\n", priorOut, prior-1);
       exit(E_ERR);
     }
   }
 
-  if((priorOut = setprior(PRIOR_MAX)) != PRIOR_MAX){
-    printf(stdout, "setprior returned %d expected %d\n", priorOut, PRIOR_MAX);
+  if((priorOut = setprior(MAX_PRIOR)) != MAX_PRIOR){
+    printf(stdout, "setprior returned %d expected %d\n", priorOut, MAX_PRIOR);
     exit(E_ERR);
   }
 
@@ -77,34 +72,34 @@ priortest(void)
 
   int prior, pidOut, failed=0;
 
-  setprior(PRIOR_MAX);
+  setprior(MAX_PRIOR);
 
-  for(prior = PRIOR_MIN; prior <= PRIOR_MAX-1; prior++){
-    pidtable[prior-PRIOR_MIN] = fork();
-    if(pidtable[prior-PRIOR_MIN] < 0){
+  for(prior = MIN_PRIOR; prior <= MAX_PRIOR-1; prior++){
+    pidtable[prior-MIN_PRIOR] = fork();
+    if(pidtable[prior-MIN_PRIOR] < 0){
       printf(stdout, "fork failed\n");
       exit(E_ERR);
     }
-    if(!pidtable[prior-PRIOR_MIN]){
+    if(!pidtable[prior-MIN_PRIOR]){
       setprior(prior);
       spin(100);
       exit(E_FINE);
     }
   }
 
-  for(prior = PRIOR_MAX-1; prior >= PRIOR_MIN; prior--){
+  for(prior = MAX_PRIOR-1; prior >= MIN_PRIOR; prior--){
     pidOut = wait(0);
     if(pidOut < 0){
       printf(stdout, "wait failed\n");
       exit(E_ERR);
     }
-    if(pidOut != pidtable[prior-PRIOR_MIN])
+    if(pidOut != pidtable[prior-MIN_PRIOR])
       failed++;
   }
 
   if(failed)
     printf(stdout, "prior test failed with %d of %d processes out of order "
-                   "(only passes with 1 cpu)\n", failed, PRIOR_MAX-PRIOR_MIN);
+                   "(only passes with 1 cpu)\n", failed, MAX_PRIOR-MIN_PRIOR);
   else
     printf(stdout, "prior test ok\n");
 }
@@ -132,7 +127,7 @@ nohangtest(void)
 
   int pid, output = 0, count = 0, killed = 0;
 
-  setprior(PRIOR_MIN+1);
+  setprior(MIN_PRIOR+1);
 
   pid = fork();
   if(pid < 0){
@@ -159,7 +154,7 @@ nohangtest(void)
         printf(stdout, "kill failed\n");
         exit(E_ERR);
       }
-      setprior(PRIOR_MIN);
+      setprior(MIN_PRIOR);
       killed = 1;
     }
   }

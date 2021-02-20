@@ -40,3 +40,13 @@ void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
 int atoi(const char*);
+
+// Macros
+
+// proc
+#define	MAX_PRIOR	16
+#define	MIN_PRIOR	1
+#define	DEF_PRIOR	4
+// exit
+#define	E_FINE	0
+#define	E_ERR	1
