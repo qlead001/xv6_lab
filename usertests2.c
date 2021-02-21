@@ -21,6 +21,99 @@ spin(int n)
   }
 }
 
+// do children processes inherit the parent's priority?
+void
+priorforktest(void)
+{
+  printf(stdout, "prior fork test\n");
+
+  int prior, pid, out, failed=0;
+
+  for(prior = MIN_PRIOR; prior <= MAX_PRIOR; prior++){
+    if(setprior(prior) == -1){
+      printf(stdout, "setprior failed\n");
+      exit(E_ERR);
+    }
+
+    pid = fork();
+    if(pid < 0){
+      printf(stdout, "fork failed\n");
+      exit(E_ERR);
+    }
+
+    if(!pid){
+      out = setprior(prior);
+      if(out == -1){
+        printf(stdout, "setprior failed\n");
+        exit(E_ERR);
+      }
+      if(out != prior){
+        printf(stdout, "Child %d has priority %d expected %d\n",
+               getpid(), out, prior);
+        exit(E_ERR);
+      }
+      exit(E_FINE);
+    }
+  }
+
+  while(wait(&out) != -1)
+    if(out == E_ERR)
+      failed++;
+
+  if(failed)
+    printf(stdout, "prior fork test failed with %d of %d children with"
+                   " incorrect priorities\n", failed, MAX_PRIOR-MIN_PRIOR+1);
+  else
+    printf(stdout, "prior test ok\n");
+}
+
+// does process aging increase priority?
+void
+prioragetest(void)
+{
+  printf(stdout, "prior age test\n");
+
+  int pid, count = 0, killed = 0;
+
+  if(setprior(MAX_PRIOR-1) == -1){
+    printf(stdout, "setprior failed\n");
+    sleep(10);
+    exit(E_ERR);
+  }
+
+  pid = fork();
+  if(pid < 0){
+    printf(stdout, "fork failed\n");
+    exit(E_ERR);
+  }
+
+  if(!pid){
+    setprior(MIN_PRIOR);
+    exit(E_FINE);
+  }
+
+  while(!waitpid(pid, 0, 1)){
+    count++;
+    if(count > 100000 && !killed){
+      printf(stdout, "Child process failed to increase priority\n");
+      printf(stdout, "Killing child process...\n");
+
+      if(kill(pid) == -1){
+        printf(stdout, "kill failed\n");
+        exit(E_ERR);
+      }
+      killed = 1;
+    }
+  }
+
+  if(killed){
+    printf(stdout, "prior test failed\n");
+    exit(E_ERR);
+  }
+
+  printf(stdout, "prior age test ok\n");
+}
+
 // does setprior correctly set priority?
 void
 setpriortest(void)
@@ -28,11 +121,6 @@ setpriortest(void)
   printf(stdout, "setprior test\n");
 
   int prior, priorOut;
-
-  if(setprior(DEF_PRIOR) != DEF_PRIOR){
-    printf(stdout, "setprior did not return expected default priority\n");
-    exit(E_ERR);
-  }
 
   if(setprior(MAX_PRIOR+1) != -1){
     printf(stdout, "setprior did not fail on priority greater than max\n");
@@ -44,8 +132,8 @@ setpriortest(void)
     exit(E_ERR);
   }
 
-  if(setprior(MIN_PRIOR) != DEF_PRIOR){
-    printf(stdout, "setprior did not return expected default priority\n");
+  if(setprior(MIN_PRIOR) == -1){
+    printf(stdout, "setprior failed\n");
     exit(E_ERR);
   }
 
@@ -72,7 +160,10 @@ priortest(void)
 
   int prior, pidOut, failed=0;
 
-  setprior(MAX_PRIOR);
+  if(setprior(MAX_PRIOR) == -1){
+    printf(stdout, "setprior failed\n");
+    exit(E_ERR);
+  }
 
   for(prior = MIN_PRIOR; prior <= MAX_PRIOR-1; prior++){
     pidtable[prior-MIN_PRIOR] = fork();
@@ -81,7 +172,10 @@ priortest(void)
       exit(E_ERR);
     }
     if(!pidtable[prior-MIN_PRIOR]){
-      setprior(prior);
+      if(setprior(prior) == -1){
+        printf(stdout, "setprior failed\n");
+        exit(E_ERR);
+      }
       spin(100);
       exit(E_FINE);
     }
@@ -99,7 +193,8 @@ priortest(void)
 
   if(failed)
     printf(stdout, "prior test failed with %d of %d processes out of order "
-                   "(only passes with 1 cpu)\n", failed, MAX_PRIOR-MIN_PRIOR);
+                   "(only passes with 1 cpu)\n",
+                   failed, MAX_PRIOR-MIN_PRIOR);
   else
     printf(stdout, "prior test ok\n");
 }
@@ -127,7 +222,10 @@ nohangtest(void)
 
   int pid, output = 0, count = 0, killed = 0;
 
-  setprior(MIN_PRIOR+1);
+  if(setprior(MIN_PRIOR+1) == -1){
+    printf(stdout, "setprior failed\n");
+    exit(E_ERR);
+  }
 
   pid = fork();
   if(pid < 0){
@@ -154,7 +252,11 @@ nohangtest(void)
         printf(stdout, "kill failed\n");
         exit(E_ERR);
       }
-      setprior(MIN_PRIOR);
+
+      if(setprior(MIN_PRIOR) == -1){
+        printf(stdout, "setprior failed\n");
+        exit(E_ERR);
+      }
       killed = 1;
     }
   }
@@ -262,20 +364,30 @@ main(int argc, char *argv[])
 {
   printf(1, "usertests2 starting\n");
 
+  int force = (argc > 1 && strcmp(argv[1], "-f") == 0);
+
   if(open("usertests2.ran", 0) >= 0){
-    printf(1, "already ran user tests 2 -- rebuild fs.img\n");
-    exit(2);
+    if(!force){
+      printf(stdout, "already ran user tests 2 --"
+             " rebuild fs.img or specify -f\n");
+      exit(2);
+    }else{
+      printf(stdout, "already ran user tests 2 -- re-running\n");
+    }
+  }else{
+    close(open("usertests2.ran", O_CREATE));
   }
-  close(open("usertests2.ran", O_CREATE));
 
   selfwaittest();
   exitstatustest();
   waitpidtest();
 
+  nohangtest();
+
   setpriortest();
   priortest();
-
-  nohangtest();
+  priorforktest();
+  prioragetest();
 
   exit(E_FINE);
 }
