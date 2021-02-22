@@ -3,10 +3,113 @@
 #include "stat.h"
 #include "user.h"
 
+#define COLOUR_ON
+#include "colours.h"
+
 const int stdout = 1;
 const int stderr = 2;
 
+struct {
+  int tests;
+  int passes;
+  int errors;
+  int warnings;
+  const char* testname;
+} stats;
+
 int pidtable[MAX_PRIOR-MIN_PRIOR];
+
+void
+print_stats(void){
+  printf(stdout, "\n");
+
+  if(stats.warnings > 0)
+    printf(stdout, OUT_YELLOW"Total Warnings: %d"OUT_RESET
+                   "\n", stats.warnings);
+  if(stats.errors > 0)
+    printf(stdout, OUT_RED"Total Errors: %d"OUT_RESET"\n", stats.errors);
+
+  if(stats.passes == stats.tests)
+    printf(stdout, OUT_GREEN"Passed all tests"OUT_RESET"\n");
+  else
+    printf(stdout, "Passed %d out of %d tests\n", stats.passes, stats.tests);
+}
+
+void
+test_start(const char* name){
+  printf(stdout, OUT_REV"%s test"OUT_RESET"\n", name);
+  stats.tests++;
+  stats.testname = name;
+}
+
+void
+test_pass(void){
+  printf(stdout, OUT_GREEN OUT_REV"Success: %s ok"OUT_RESET"\n", stats.testname);
+  stats.passes++;
+}
+
+void
+test_fail(void){
+  printf(stdout, OUT_RED OUT_REV"Failure: %s failed"OUT_RESET"\n", stats.testname);
+}
+
+void
+print_warn(const char* str){
+  printf(stderr, OUT_YELLOW"Warning: %s"OUT_RESET"\n", str);
+  stats.warnings++;
+}
+
+void
+print_error(const char* str){
+  printf(stderr, OUT_RED"Error: %s"OUT_RESET"\n", str);
+  stats.errors++;
+}
+
+void
+fail(const char* str){
+  printf(stderr, OUT_RED"Error: %s"OUT_RESET"\n", str);
+  stats.errors++;
+  exit(E_ERR | ((stats.warnings>0)*E_WARN));
+}
+
+void
+exit_child(){
+  int warns, errors;
+  warns = ((stats.warnings>0)*E_WARN);
+  errors = ((stats.errors>0)*E_ERR);
+  exit(warns | errors);
+}
+
+void
+warn_expect(const char* str, int ret, int exp){
+  printf(stderr, OUT_YELLOW"Warning: %s\n", str);
+  printf(stderr, "\tReturned: "OUT_BOLD"%d"OUT_RESET
+                 OUT_YELLOW"\n\tExpected: "OUT_BOLD"%d"
+                 OUT_RESET"\n", ret, exp);
+  stats.warnings++;
+}
+
+void
+error_expect(const char* str, int ret, int exp){
+  printf(stderr, OUT_RED"Error: %s\n", str);
+  printf(stderr, "\tReturned: "OUT_BOLD"%d"OUT_RESET
+                 OUT_RED"\n\tExpected: "OUT_BOLD"%d"
+                 OUT_RESET"\n", ret, exp);
+  stats.errors++;
+}
+
+int
+wait_stat(int* status){
+  int out, stat;
+  if(!status)
+    status = &stat;
+  out = wait(status);
+  if(*status & E_ERR)
+    stats.errors++;
+  if(*status & E_WARN)
+    stats.warnings++;
+  return out;
+}
 
 // Does nothing n^2 times
 // Helper function for priortest()
@@ -25,67 +128,59 @@ spin(int n)
 void
 priorforktest(void)
 {
-  printf(stdout, "prior fork test\n");
+  test_start("prior fork");
 
   int prior, pid, out, failed=0;
 
   for(prior = MIN_PRIOR; prior <= MAX_PRIOR; prior++){
-    if(setprior(prior) == -1){
-      printf(stdout, "setprior failed\n");
-      exit(E_ERR);
-    }
+    if(setprior(prior) == -1)
+      fail("setprior failed");
 
     pid = fork();
-    if(pid < 0){
-      printf(stdout, "fork failed\n");
-      exit(E_ERR);
-    }
+    if(pid < 0)
+      fail("fork failed");
 
     if(!pid){
       out = setprior(prior);
-      if(out == -1){
-        printf(stdout, "setprior failed\n");
-        exit(E_ERR);
-      }
+      if(out == -1)
+        fail("setprior failed");
+
       if(out != prior){
-        printf(stdout, "Child %d has priority %d expected %d\n",
-               getpid(), out, prior);
-        exit(E_ERR);
+        error_expect("Child has unexpected priority", out, prior);
+        exit_child();
       }
-      exit(E_FINE);
+      exit_child();
     }
   }
 
-  while(wait(&out) != -1)
-    if(out == E_ERR)
+  while(wait_stat(&out) != -1)
+    if(out & E_ERR)
       failed++;
 
-  if(failed)
-    printf(stdout, "prior fork test failed with %d of %d children with"
-                   " incorrect priorities\n", failed, MAX_PRIOR-MIN_PRIOR+1);
-  else
-    printf(stdout, "prior test ok\n");
+  if(failed){
+    printf(stdout, OUT_RED"Error: %d of %d children with incorrect priorities"
+                   OUT_RESET"\n", failed, MAX_PRIOR-MIN_PRIOR+1);
+    stats.errors++;
+    test_fail();
+  }else{
+    test_pass();
+  }
 }
 
 // does process aging increase priority?
 void
 prioragetest(void)
 {
-  printf(stdout, "prior age test\n");
+  test_start("prior age");
 
   int pid, count = 0, killed = 0;
 
-  if(setprior(MAX_PRIOR-1) == -1){
-    printf(stdout, "setprior failed\n");
-    sleep(10);
-    exit(E_ERR);
-  }
+  if(setprior(MAX_PRIOR-1) == -1)
+    fail("setprior failed");
 
   pid = fork();
-  if(pid < 0){
-    printf(stdout, "fork failed\n");
-    exit(E_ERR);
-  }
+  if(pid < 0)
+    fail("fork failed");
 
   if(!pid){
     setprior(MIN_PRIOR);
@@ -95,122 +190,117 @@ prioragetest(void)
   while(!waitpid(pid, 0, 1)){
     count++;
     if(count > 100000 && !killed){
-      printf(stdout, "Child process failed to increase priority\n");
-      printf(stdout, "Killing child process...\n");
+      print_error("Child process failed to increase priority");
+      printf(stdout, "Killing child process %d...\n", pid);
 
-      if(kill(pid) == -1){
-        printf(stdout, "kill failed\n");
-        exit(E_ERR);
-      }
+      if(kill(pid) == -1)
+        fail("kill failed");
       killed = 1;
     }
   }
 
-  if(killed){
-    printf(stdout, "prior test failed\n");
-    exit(E_ERR);
-  }
-
-  printf(stdout, "prior age test ok\n");
+  if(killed)
+    test_fail();
+  else
+    test_pass();
 }
 
 // does setprior correctly set priority?
 void
 setpriortest(void)
 {
-  printf(stdout, "setprior test\n");
+  test_start("setprior");
 
-  int prior, priorOut;
+  int prior, priorOut, failed = 0;
 
   if(setprior(MAX_PRIOR+1) != -1){
-    printf(stdout, "setprior did not fail on priority greater than max\n");
-    exit(E_ERR);
+    print_error("setprior did not fail on priority greater than max");
+    failed++;
   }
 
   if(setprior(MIN_PRIOR-1) != -1){
-    printf(stdout, "setprior did not fail on priority less than min\n");
-    exit(E_ERR);
+    print_error("setprior did not fail on priority less than min");
+    failed++;
   }
 
-  if(setprior(MIN_PRIOR) == -1){
-    printf(stdout, "setprior failed\n");
-    exit(E_ERR);
-  }
+  if(setprior(MIN_PRIOR) == -1)
+    fail("setprior failed");
 
   for(prior = MIN_PRIOR+1; prior <= MAX_PRIOR; prior++){
     if((priorOut = setprior(prior)) != prior-1){
-      printf(stdout, "setprior returned %d expected %d\n", priorOut, prior-1);
-      exit(E_ERR);
+      error_expect("setprior unexpected value", priorOut, prior-1);
+      failed++;
     }
   }
 
   if((priorOut = setprior(MAX_PRIOR)) != MAX_PRIOR){
-    printf(stdout, "setprior returned %d expected %d\n", priorOut, MAX_PRIOR);
-    exit(E_ERR);
+    error_expect("setprior unexpected value", priorOut, MAX_PRIOR);
+    failed++;
   }
 
-  printf(stdout, "setprior test ok\n");
+  if(failed)
+    test_fail();
+  else
+    test_pass();
 }
 
 // does the scheduler prioritise correctly?
 void
 priortest(void)
 {
-  printf(stdout, "prior test\n");
+  test_start("prior");
 
-  int prior, pidOut, failed=0;
+  int prior, pidOut, failed = 0;
 
-  if(setprior(MAX_PRIOR) == -1){
-    printf(stdout, "setprior failed\n");
-    exit(E_ERR);
-  }
+  if(setprior(MAX_PRIOR) == -1)
+    fail("setprior failed");
 
   for(prior = MIN_PRIOR; prior <= MAX_PRIOR-1; prior++){
     pidtable[prior-MIN_PRIOR] = fork();
-    if(pidtable[prior-MIN_PRIOR] < 0){
-      printf(stdout, "fork failed\n");
-      exit(E_ERR);
-    }
+    if(pidtable[prior-MIN_PRIOR] < 0)
+      fail("fork failed");
+
     if(!pidtable[prior-MIN_PRIOR]){
-      if(setprior(prior) == -1){
-        printf(stdout, "setprior failed\n");
-        exit(E_ERR);
-      }
+      if(setprior(prior) == -1)
+        fail("setprior failed");
       spin(100);
       exit(E_FINE);
     }
   }
 
   for(prior = MAX_PRIOR-1; prior >= MIN_PRIOR; prior--){
-    pidOut = wait(0);
-    if(pidOut < 0){
-      printf(stdout, "wait failed\n");
-      exit(E_ERR);
-    }
+    pidOut = wait_stat(0);
+    if(pidOut < 0)
+      fail("wait failed");
+
     if(pidOut != pidtable[prior-MIN_PRIOR])
       failed++;
   }
 
-  if(failed)
-    printf(stdout, "prior test failed with %d of %d processes out of order "
-                   "(only passes with 1 cpu)\n",
+  if(failed){
+    printf(stdout, OUT_YELLOW"%d of %d processes out of order "
+                   "(only passes with 1 cpu)"OUT_RESET"\n",
                    failed, MAX_PRIOR-MIN_PRIOR);
-  else
-    printf(stdout, "prior test ok\n");
+    stats.warnings++;
+    test_fail();
+  }else{
+    test_pass();
+  }
 }
 
 // does self waiting fail?
 void
 selfwaittest(void)
 {
-  printf(stdout, "self wait test\n");
+  test_start("self wait");
 
   if(waitpid(getpid(), 0, 1) != -1){
-    printf(stdout, "waitpid should fail on self wait\n");
-    exit(E_ERR);
+    print_error("waitpid should fail on self wait");
+    test_fail();
+    return;
   }
 
-  printf(stdout, "self wait ok\n");
+  test_pass();
 }
 
 
@@ -218,20 +308,17 @@ selfwaittest(void)
 void
 nohangtest(void)
 {
-  printf(stdout, "nohang test\n");
+  test_start("nohang");
 
   int pid, output = 0, count = 0, killed = 0;
 
-  if(setprior(MIN_PRIOR+1) == -1){
-    printf(stdout, "setprior failed\n");
-    exit(E_ERR);
-  }
+  if(setprior(MIN_PRIOR+1) == -1)
+    fail("setprior failed");
 
   pid = fork();
-  if(pid < 0){
-    printf(stdout, "fork failed\n");
-    exit(E_ERR);
-  }
+  if(pid < 0)
+    fail("fork failed");
+
   if(!pid){
     spin(100);
     exit(E_FINE);
@@ -239,124 +326,162 @@ nohangtest(void)
 
   while(!output){
     output = waitpid(pid, 0, 1);
-    if(output < 0){
-      printf(stdout, "waitpid failed\n");
-      exit(E_ERR);
-    }
+    if(output < 0)
+      fail("waitpid failed");
+
     count++;
 
     if(count > 10000 && !killed){
-      printf(stdout, "Warning: child process never finished, "
-                     "killing process %d\n", pid);
-      if(kill(pid) == -1){
-        printf(stdout, "kill failed\n");
-        exit(E_ERR);
-      }
+      print_warn("Child process never finished");
+      printf(stdout, "Killing process %d\n", pid);
+      if(kill(pid) == -1)
+        fail("kill failed");
 
-      if(setprior(MIN_PRIOR) == -1){
-        printf(stdout, "setprior failed\n");
-        exit(E_ERR);
-      }
+      if(setprior(MIN_PRIOR) == -1)
+        fail("setprior failed");
+
       killed = 1;
     }
   }
 
   if(count < 5){
-    printf(stdout, "waitpid with nohang still waited\n");
-    exit(E_ERR);
+    print_error("waitpid with nohang still waited");
+    test_fail();
+  }else{
+    test_pass();
   }
-
-  printf(stdout, "nohang ok\n");
 }
 
 // does waitpid wait properly?
 void
 waitpidtest(void)
 {
-  printf(stdout, "waitpid test\n");
+  test_start("waitpid");
 
-  int pid1, pid2;
+  int pid1, pid2, out, failed = 0;
   int waitstatus;
   int exitstatus;
 
   for(exitstatus = 0; exitstatus < 10; exitstatus++){
     pid1 = fork();
-    if(pid1 < 0){
-      printf(stdout, "fork failed\n");
-      exit(E_ERR);
-    }
+    if(pid1 < 0)
+      fail("fork failed");
+
     if(!pid1)
       exit(exitstatus);
 
     pid2 = fork();
-    if(pid2 < 0){
-      printf(stdout, "fork failed\n");
-      exit(-1);
-    }
+    if(pid2 < 0)
+      fail("fork failed");
+
     if(!pid2){
       if(waitpid(pid1, &waitstatus, 0) != pid1){
-        printf(stdout, "waitpid failed\n");
+        print_error("waitpid failed");
         exit(-1);
       }
       if(waitstatus != exitstatus){
-        printf(stdout, "waitpid wrong status\n");
+        print_error("waitpid wrong status");
         exit(-1);
       }
       if(waitpid(pid1, 0, 0) != -1){
-        printf(stdout, "waitpid should have failed but didn't\n");
+        print_error("waitpid should have failed but did not");
         exit(-1);
       }
       exit(2*exitstatus);
     }
 
-    if(waitpid(pid2, &waitstatus, 0) != pid2){
-      printf(stdout, "waitpid failed\n");
-      exit(E_ERR);
+    if((out = waitpid(pid2, &waitstatus, 0)) == -1)
+      fail("waitpid failed");
+
+    if(out != pid2){
+      error_expect("waitpid returned incorrect pid", out, pid2);
+      failed++;
     }
+
+    if(waitstatus == -1)
+      stats.errors++;
+
     if(waitstatus != 2*exitstatus){
-      printf(stdout, "waitpid wrong status\n");
-      exit(E_ERR);
+      error_expect("waitpid wrong status", waitstatus, 2*exitstatus);
+      failed++;
     }
     if(wait(0) != -1) {
-      printf(stdout, "Waitpid failed to reap a child\n");
-      exit(E_ERR);
+      print_error("Waitpid failed to reap a child");
+      failed++;
     }
   }
 
-  printf(stdout, "waitpid ok\n");
+  if(failed)
+    test_fail();
+  else
+    test_pass();
 }
 
 // does exit status get returned by wait?
 void
 exitstatustest(void)
 {
-  printf(stdout, "exit status test\n");
+  test_start("exit status");
 
-  int pid;
+  int pid, out, failed = 0;
   int waitstatus;
   int exitstatus;
 
   for(exitstatus = 0; exitstatus < 10; exitstatus++){
     pid = fork();
-    if(pid < 0){
-      printf(stdout, "fork failed\n");
-      exit(E_ERR);
-    }
+    if(pid < 0)
+      fail("fork failed");
+
     if(pid){
-      if(wait(&waitstatus) != pid){
-        printf(stdout, "wait wrong pid\n");
-        exit(E_ERR);
+      out = wait(&waitstatus);
+      if(out == -1)
+        fail("wait failed");
+
+      if(out != pid){
+        error_expect("wait wrong pid", out, pid);
+        failed++;
+        continue;
       }
+
       if(waitstatus != exitstatus){
-        printf(stdout, "wait wrong status\n");
-        exit(E_ERR);
+        error_expect("wait wrong status", waitstatus, exitstatus);
+        failed++;
+        continue;
       }
     } else {
       exit(exitstatus);
     }
   }
 
-  printf(stdout, "exit status ok\n");
+  if(failed)
+    test_fail();
+  else
+    test_pass();
+}
+
+void
+testfunc(void){
+  test_start("sample");
+  printf(stdout, "Warnings = %d\tErrors = %d\n",stats.warnings,stats.errors);
+  print_warn("test warning");
+  print_error("test error");
+  warn_expect("test did not return normally", 17, 28);
+  error_expect("test did not return normally", 17, 28);
+  printf(stdout, "Warnings = %d\tErrors = %d\n",stats.warnings,stats.errors);
+  int pid = fork();
+  if(!pid){
+    warn_expect("Child did not return normally", 999, 0);
+    fail("Child failure");
+  }else{
+    wait_stat(0);
+  }
+  printf(stdout, "Warnings = %d\tErrors = %d\n",stats.warnings,stats.errors);
+  test_pass();
+  test_start("new attempt");
+  test_fail();
+  test_start("another one");
+  test_pass();
+  fail("Critical failure");
 }
 
 int
@@ -370,7 +495,7 @@ main(int argc, char *argv[])
     if(!force){
       printf(stdout, "already ran user tests 2 --"
              " rebuild fs.img or specify -f\n");
-      exit(2);
+      exit(E_WARN);
     }else{
       printf(stdout, "already ran user tests 2 -- re-running\n");
     }
@@ -388,6 +513,9 @@ main(int argc, char *argv[])
   priortest();
   priorforktest();
   prioragetest();
+
+  //testfunc();
+  print_stats();
 
   exit(E_FINE);
 }
