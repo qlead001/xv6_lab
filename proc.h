@@ -34,6 +34,8 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+#define W_NOHANG	1
+
 #define	MAX_PRIOR	16
 #define	MIN_PRIOR	1
 #define	DEF_PRIOR	4
