@@ -91,6 +91,7 @@ extern int sys_exit(void);
 extern int sys_fork(void);
 extern int sys_fstat(void);
 extern int sys_getpid(void);
+extern int sys_gettimes(void);
 extern int sys_kill(void);
 extern int sys_link(void);
 extern int sys_mkdir(void);
@@ -132,6 +133,7 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]    sys_mkdir,
 [SYS_close]    sys_close,
 [SYS_setprior] sys_setprior,
+[SYS_gettimes] sys_gettimes,
 };
 
 void

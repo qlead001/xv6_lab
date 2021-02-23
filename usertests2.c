@@ -124,6 +124,77 @@ spin(int n)
   }
 }
 
+// Returns 1 if two values are within threshold
+// Otherwise it returns 0
+int
+thresh(int a, int b, int thresh)
+{
+  int diff;
+  diff = (a > b) ? a - b : b - a;
+  return (diff < thresh);
+}
+
+// does gettimes accurately report times?
+void
+gettimetest(void)
+{
+  test_start("gettime");
+
+  int pid, start, end, init_time, i, count, killed, waited = 0, failed = 0;
+  struct times t;
+
+  gettimes(&t);
+  init_time = uptime() - t.turnaround;
+
+  for(i = 0; i < 10; i++){
+    count = killed = 0;
+
+    start = uptime();
+    sleep(100+i*10);
+    waited += uptime() - start;
+
+    pid = fork();
+    if(pid < 0)
+      fail("fork failed");
+
+    if(!pid){
+      sleep(100+i*10);
+      exit(E_FINE);
+    }
+
+    while(!waitpid(pid, 0, 1)){
+      count++;
+      if(count > 1e9 && !killed){
+        print_error("Child process failed to increase priority");
+        printf(stdout, "Killing child process %d...\n", pid);
+  
+        if(kill(pid) == -1)
+          fail("kill failed");
+        killed = 1;
+        failed++;
+      }
+    }
+    if(killed)
+      continue;
+
+    gettimes(&t);
+    end = uptime();
+    if(!thresh(t.turnaround, end - init_time, 10)){
+      error_expect("Turnaround time incorrect", t.turnaround, end - init_time);
+      failed++;
+    }
+    if(!thresh(t.waittime, waited, 10)){
+      error_expect("Wait time incorrect", t.waittime, waited);
+      failed++;
+    }
+  }
+
+  if(failed)
+    test_fail();
+  else
+    test_pass();
+}
+
 // do children processes inherit the parent's priority?
 void
 priorforktest(void)
@@ -513,6 +584,7 @@ main(int argc, char *argv[])
   priortest();
   priorforktest();
   prioragetest();
+  gettimetest();
 
   //testfunc();
   print_stats();

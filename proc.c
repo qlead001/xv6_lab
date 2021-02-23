@@ -12,6 +12,13 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+/*
+struct times{
+  int turnaround;
+  int waittime;
+};
+*/
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -115,6 +122,9 @@ found:
   // Set initial priority level
   p->prior = DEF_PRIOR;
   p->currprior = DEF_PRIOR;
+
+  // Set runtime to 0
+  p->runtime = 0;
 
   // Save when the process started
   acquire(&tickslock);
@@ -321,6 +331,7 @@ wait(int *status)
         p->currprior = 0;
         p->initticks = 0;
         p->schedticks = 0;
+        p->runtime = 0;
         release(&ptable.lock);
         return pid;
       }
@@ -378,6 +389,7 @@ waitpid(int pid, int *status, int options)
         p->currprior = 0;
         p->initticks = 0;
         p->schedticks = 0;
+        p->runtime = 0;
         release(&ptable.lock);
         return pid;
       } else {
@@ -453,6 +465,10 @@ scheduler(void)
 
     // Only switch process if we found a valid process
     if(maxprior > 0){
+      // Update schedticks
+      acquire(&tickslock);
+      maxp->schedticks = ticks;
+      release(&tickslock);
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -464,6 +480,7 @@ scheduler(void)
       switchkvm();
   
       acquire(&tickslock);
+      maxp->runtime += ticks - maxp->schedticks;
       maxp->schedticks = ticks;
       release(&tickslock);
 
@@ -691,6 +708,25 @@ setprior(int prior)
   yield();
 
   return oldprior;
+}
+
+// Return turnaround time and wait time
+void
+gettimes(struct times* t)
+{
+  struct proc *p = myproc();
+  int currticks;
+
+  acquire(&ptable.lock);
+
+  acquire(&tickslock);
+  currticks = ticks;
+  release(&tickslock);
+
+  t->turnaround = currticks - p->initticks;
+  t->waittime = t->turnaround - (currticks - p->schedticks + p->runtime);
+
+  release(&ptable.lock);
 }
 
 //PAGEBREAK: 36

@@ -9,6 +9,11 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+//struct times;
+struct times{
+  int turnaround;
+  int waittime;
+};
 
 // bio.c
 void            binit(void);
@@ -123,6 +128,7 @@ int             wait(int *status);
 int             waitpid(int pid, int *status, int options);
 void            wakeup(void*);
 void            yield(void);
+void            gettimes(struct times* t);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

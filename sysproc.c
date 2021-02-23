@@ -14,6 +14,18 @@ sys_debug(void)
 }
 
 int
+sys_gettimes(void)
+{
+  struct times *t;
+
+  if(argptr(0, (void*)&t, sizeof(struct times)) < 0)
+    return -1;
+
+  gettimes(t);
+  return 0;
+}
+
+int
 sys_fork(void)
 {
   return fork();

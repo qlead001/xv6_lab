@@ -62,6 +62,7 @@ struct proc {
   int currprior;               // Priority including escalation from aging
   int initticks;               // Tick count at start of process
   int schedticks;              // Tick of last priority change
+  int runtime;                 // Runtime in ticks
 };
 
 // Process memory is laid out contiguously, low addresses first:

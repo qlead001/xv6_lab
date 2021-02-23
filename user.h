@@ -1,5 +1,10 @@
 struct stat;
 struct rtcdate;
+//struct times;
+struct times{
+  int turnaround;
+  int waittime;
+};
 
 // system calls
 int debug(void);
@@ -26,6 +31,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int setprior(int prior);
+int gettimes(struct times* t);
 
 // ulib.c
 int stat(const char*, struct stat*);
