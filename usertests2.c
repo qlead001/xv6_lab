@@ -260,7 +260,7 @@ prioragetest(void)
 
   while(!waitpid(pid, 0, 1)){
     count++;
-    if(count > 100000 && !killed){
+    if(count > 1e9 && !killed){
       print_error("Child process failed to increase priority");
       printf(stdout, "Killing child process %d...\n", pid);
 
@@ -402,7 +402,7 @@ nohangtest(void)
 
     count++;
 
-    if(count > 10000 && !killed){
+    if(count > 1e5 && !killed){
       print_warn("Child process never finished");
       printf(stdout, "Killing process %d\n", pid);
       if(kill(pid) == -1)
