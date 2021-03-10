@@ -46,6 +46,8 @@ trap(struct trapframe *tf)
     return;
   }
 
+  uint stackbottom;
+
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
@@ -77,6 +79,16 @@ trap(struct trapframe *tf)
             cpuid(), tf->cs, tf->eip);
     lapiceoi();
     break;
+  case T_PGFLT:
+    stackbottom = USTACKBASE - (PGSIZE * (myproc()->stackPages));
+    if(stackbottom > rcr2() && stackbottom - PGSIZE < rcr2()){
+      // allocate a new page
+      allocuvm(myproc()->pgdir, stackbottom - PGSIZE, stackbottom);
+      myproc()->stackPages++;
+      cprintf("Page Fault: Added one page to stack\n");
+      clearpteu(myproc()->pgdir, (char*)(stackbottom - 2*PGSIZE));
+      break;
+    }
 
   //PAGEBREAK: 13
   default:
