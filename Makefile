@@ -175,6 +175,7 @@ UPROGS=\
 	_kill\
 	_lab1_test\
 	_lab2_test\
+	_lab3_test\
 	_ln\
 	_ls\
 	_mkdir\
