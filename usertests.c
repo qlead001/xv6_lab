@@ -1763,16 +1763,16 @@ main(int argc, char *argv[])
   fourfiles();
   sharedfd();
 
-  bigargtest();
+//  bigargtest();
   bigwrite();
-  bigargtest();
+//  bigargtest();
   bsstest();
   sbrktest();
-  validatetest();
+//  validatetest();
 
   opentest();
   writetest();
-  writetest1();
+//  writetest1();
   createtest();
 
   openiputtest();
